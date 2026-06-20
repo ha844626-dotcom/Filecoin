@@ -264,7 +264,8 @@ const STORAGE_KEY = 'paybyte_receipts_v1';
 // Hardcoded for private/personal hosting only. Anyone who can view
 // this page's source can read this key and use your storage quota.
 // Do NOT share this page's URL publicly while the key is hardcoded.
-const LIGHTHOUSE_API_KEY = "%VITE_API_KEY%";
+// Vercel will look for this name and replace it during deployment
+const LIGHTHOUSE_API_KEY = process.env.LIGHTHOUSE_API_KEY;
 // ─────────────────────────────────────────────────────────────────
 
 // Illustrative-only rate, clearly disclosed in the UI as an estimate,
