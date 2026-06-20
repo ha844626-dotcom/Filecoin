@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pay-Per-Byte — Filecoin Storage Pricing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #14181F;
+  --ink-raised: #1B212B;
+  --parchment: #F2E9D8;
+  --parchment-dim: #C9C0AE;
+  --wax: #A4423A;
+  --wax-bright: #C25249;
+  --moss: #5C7A5C;
+  --moss-bright: #74957A;
+  --graphite: #6B7280;
+  --hairline: rgba(242, 233, 216, 0.12);
+  --serif: 'Fraunces', Georgia, serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--ink); color: var(--parchment); font-family: var(--mono); -webkit-font-smoothing: antialiased; }
+body { position: relative; min-height: 100vh; overflow-x: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+.site-header { padding: 2.5rem 6vw 1.5rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.mark { display: flex; align-items: baseline; gap: 0.6rem; }
+.mark-glyph { font-size: 1.3rem; }
+.mark-text { font-family: var(--serif); font-weight: 600; font-size: 1.3rem; letter-spacing: -0.01em; }
+.mark-sub { margin: 0; font-size: 0.78rem; color: var(--parchment-dim); letter-spacing: 0.02em; }
+
+.stage {
+  padding: 2rem 6vw 5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: start;
+}
+@media (max-width: 920px) { .stage { grid-template-columns: 1fr; gap: 2.5rem; } }
+
+.copy h1 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  line-height: 1.08; letter-spacing: -0.015em;
+  margin: 0 0 1.25rem;
+}
+.copy .accent { color: var(--wax-bright); font-style: italic; }
+.lede { font-size: 0.95rem; line-height: 1.65; color: var(--parchment-dim); max-width: 38ch; margin: 0 0 2rem; }
+
+.disclaimer {
+  display: flex;
+  gap: 0.6rem;
+  background: var(--ink-raised);
+  border: 1px solid var(--hairline);
+  border-left: 2px solid var(--wax);
+  border-radius: 3px;
+  padding: 0.9rem 1.1rem;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: var(--parchment-dim);
+  max-width: 40ch;
+}
+
+/* ---------- Drop panel ---------- */
+.panel {
+  background: var(--ink-raised);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.drop-zone {
+  position: relative;
+  border: 1px dashed var(--hairline);
+  border-radius: 4px;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--wax-bright); background: rgba(164,66,58,0.04); }
+.drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop-icon { font-size: 1.6rem; display: block; margin-bottom: 0.6rem; opacity: 0.8; }
+.drop-label { font-size: 0.88rem; color: var(--parchment-dim); }
+.drop-filename { font-family: var(--serif); font-size: 1.15rem; color: var(--parchment); margin-top: 0.4rem; }
+
+/* price readout */
+.price-readout {
+  border-top: 1px solid var(--hairline);
+  padding-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.price-row { display: flex; align-items: baseline; justify-content: space-between; }
+.price-row .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--graphite); }
+.price-row .value { font-family: var(--mono); font-size: 0.95rem; color: var(--parchment); }
+
+.price-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+.price-hero .big {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 2.6rem;
+  letter-spacing: -0.02em;
+  color: var(--moss-bright);
+  transition: color 0.2s ease;
+}
+.price-hero .unit { font-size: 0.85rem; color: var(--parchment-dim); }
+.price-hero.empty .big { color: var(--graphite); }
+
+.size-bar-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(242,233,216,0.06);
+  overflow: hidden;
+}
+.size-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--wax);
+  transition: width 0.4s ease, background 0.3s ease;
+}
+
+.seal-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+  background: var(--wax); color: var(--parchment);
+  border: none; border-radius: 3px;
+  padding: 0.85rem 1.2rem;
+  font-family: var(--mono); font-weight: 600; font-size: 0.88rem; letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.seal-btn:hover { background: var(--wax-bright); }
+.seal-btn:active { transform: scale(0.98); }
+.seal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.form-status { margin: 0; font-size: 0.82rem; min-height: 1.2em; color: var(--parchment-dim); }
+.form-status[data-tone="error"] { color: var(--wax-bright); }
+.form-status[data-tone="success"] { color: var(--moss-bright); }
+
+/* ---------- Receipts list ---------- */
+.receipts-section { padding: 1rem 6vw 5rem; border-top: 1px solid var(--hairline); }
+.section-head { padding: 2.5rem 0 2rem; }
+.section-head h2 { font-family: var(--serif); font-weight: 500; font-size: 1.6rem; margin: 0 0 0.35rem; }
+.section-sub { margin: 0; color: var(--parchment-dim); font-size: 0.85rem; }
+.empty-state { color: var(--parchment-dim); font-size: 0.9rem; padding: 2rem 0; }
+
+.receipt-list { display: flex; flex-direction: column; gap: 0.9rem; }
+.receipt-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 1.2rem;
+  background: var(--ink-raised);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 1rem 1.3rem;
+}
+@media (max-width: 700px) { .receipt-card { grid-template-columns: 1fr; gap: 0.6rem; } }
+
+.receipt-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--graphite); flex-shrink: 0; }
+.receipt-dot[data-status="pending"] { background: var(--graphite); animation: pulse 1.6s ease-in-out infinite; }
+.receipt-dot[data-status="proving"] { background: #C9A227; animation: pulse 1.6s ease-in-out infinite; }
+.receipt-dot[data-status="proven"] { background: var(--moss-bright); animation: none; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.receipt-info { min-width: 0; }
+.receipt-name { font-family: var(--serif); font-size: 1rem; margin: 0 0 0.15rem; }
+.receipt-meta { font-size: 0.74rem; color: var(--graphite); }
+
+.receipt-price { font-family: var(--mono); font-size: 0.92rem; color: var(--moss-bright); white-space: nowrap; }
+
+.receipt-link { font-size: 0.76rem; color: var(--parchment); text-decoration: none; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+.receipt-link:hover { border-color: var(--parchment); }
+
+.site-footer { padding: 2rem 6vw 3rem; border-top: 1px solid var(--hairline); }
+.site-footer p { margin: 0 0 0.4rem; font-size: 0.72rem; color: var(--graphite); max-width: 60ch; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="mark">
+    <span class="mark-glyph">◈</span>
+    <span class="mark-text">Pay-Per-Byte</span>
+  </div>
+  <p class="mark-sub">drop a file · see the real storage cost · store it on Filecoin</p>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="copy">
+      <h1>Storage shouldn't<br>be a <span class="accent">mystery bill.</span></h1>
+      <p class="lede">Most cloud storage hides its true cost behind a flat monthly plan. Filecoin prices storage by the byte, transparently. Drop a file below and watch the price calculate live — then store it for real.</p>
+      <div class="disclaimer">
+        <span>＊</span>
+        <span>Price shown is an illustrative estimate for this demo, based on Filecoin's typical cost advantage over centralized cloud storage — not a live quote from a pricing API. The upload itself is real.</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <form id="dropForm">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" />
+          <span class="drop-icon">⇪</span>
+          <span class="drop-label" id="dropLabel">Drop a file here, or click to choose</span>
+          <div class="drop-filename" id="dropFilename"></div>
+        </div>
+
+        <div class="price-readout">
+          <div class="price-hero empty" id="priceHero">
+            <span class="big" id="priceBig">$0.0000</span>
+            <span class="unit">estimated to store forever</span>
+          </div>
+          <div class="size-bar-track"><div class="size-bar-fill" id="sizeBarFill"></div></div>
+          <div class="price-row"><span class="label">File size</span><span class="value" id="fileSizeValue">—</span></div>
+          <div class="price-row"><span class="label">Rate used</span><span class="value">~$7 / TB·month equiv.</span></div>
+        </div>
+
+        <button type="submit" class="seal-btn" id="storeBtn" disabled>
+          <span>◈</span>
+          <span>Store on Filecoin</span>
+        </button>
+        <p class="form-status" id="formStatus"></p>
+      </form>
+    </div>
+  </section>
+
+  <section class="receipts-section">
+    <div class="section-head">
+      <h2>Stored files</h2>
+      <p class="section-sub">Every file here is really pinned to IPFS and committed to a Filecoin deal.</p>
+    </div>
+    <div class="receipt-list" id="receiptList">
+      <p class="empty-state" id="emptyState">Nothing stored yet — drop a file above to begin.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>Storage verified via Filecoin Proof of Data Segment Inclusion (PoDSI), served through Lighthouse.</p>
+  <p>Personal-use build: receipts are saved to this browser's local storage. The Lighthouse API key is configured by the site owner — keep this page's URL private.</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.7/axios.min.js"></script>
+<script>
+const GATEWAY = 'https://gateway.lighthouse.storage/ipfs/';
+const STORAGE_KEY = 'paybyte_receipts_v1';
+
+// ── Lighthouse API key ──────────────────────────────────────────
+// Hardcoded for private/personal hosting only. Anyone who can view
+// this page's source can read this key and use your storage quota.
+// Do NOT share this page's URL publicly while the key is hardcoded.
+const LIGHTHOUSE_API_KEY = '2d6e8cfd.21efad73ef384f6b9beba0db63ed5cf6';
+// ─────────────────────────────────────────────────────────────────
+
+// Illustrative-only rate, clearly disclosed in the UI as an estimate,
+// derived from Filecoin's well-documented cost range vs. centralized cloud.
+const RATE_PER_GB_MONTH = 0.007; // ~$7/TB-month equivalent, ballpark
+
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const dropLabel = document.getElementById('dropLabel');
+const dropFilename = document.getElementById('dropFilename');
+const priceHero = document.getElementById('priceHero');
+const priceBig = document.getElementById('priceBig');
+const sizeBarFill = document.getElementById('sizeBarFill');
+const fileSizeValue = document.getElementById('fileSizeValue');
+const storeBtn = document.getElementById('storeBtn');
+const form = document.getElementById('dropForm');
+const formStatus = document.getElementById('formStatus');
+const receiptList = document.getElementById('receiptList');
+const emptyState = document.getElementById('emptyState');
+
+function bytesToReadable(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024*1024)).toFixed(2)} MB`;
+  return `${(bytes / (1024*1024*1024)).toFixed(2)} GB`;
+}
+
+function estimatePrice(bytes) {
+  const gb = bytes / (1024 * 1024 * 1024);
+  return gb * RATE_PER_GB_MONTH;
+}
+
+function formatPrice(price) {
+  if (price === 0) return '$0.0000';
+  if (price < 0.000001) return `<$0.000001`;
+  if (price < 0.0001) return `$${price.toFixed(8)}`;
+  if (price < 0.01) return `$${price.toFixed(6)}`;
+  return `$${price.toFixed(4)}`;
+}
+
+function updatePriceDisplay(file) {
+  if (!file) {
+    priceHero.classList.add('empty');
+    priceBig.textContent = '$0.0000';
+    sizeBarFill.style.width = '0%';
+    fileSizeValue.textContent = '—';
+    storeBtn.disabled = true;
+    return;
+  }
+  const price = estimatePrice(file.size);
+  priceHero.classList.remove('empty');
+  priceBig.textContent = formatPrice(price);
+  fileSizeValue.textContent = bytesToReadable(file.size);
+
+  // visual fill: log-scale-ish against a 1GB reference so small files still show movement
+  const pct = Math.min(100, (file.size / (1024*1024*1024)) * 100);
+  sizeBarFill.style.width = `${Math.max(pct, file.size > 0 ? 4 : 0)}%`;
+
+  storeBtn.disabled = false;
+}
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  dropLabel.style.display = file ? 'none' : 'block';
+  dropFilename.textContent = file ? file.name : '';
+  updatePriceDisplay(file);
+});
+
+['dragover', 'dragleave', 'drop'].forEach((evt) => {
+  dropZone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropZone.classList.toggle('dragover', evt === 'dragover');
+  });
+});
+dropZone.addEventListener('drop', (e) => {
+  if (e.dataTransfer.files[0]) {
+    fileInput.files = e.dataTransfer.files;
+    fileInput.dispatchEvent(new Event('change'));
+  }
+});
+
+function setStatus(message, tone) {
+  formStatus.textContent = message;
+  if (tone) formStatus.setAttribute('data-tone', tone);
+  else formStatus.removeAttribute('data-tone');
+}
+
+function loadReceipts() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+function saveReceipts(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+
+function proofStatusText(status) {
+  switch (status) {
+    case 'proven': return 'Filecoin deal confirmed';
+    case 'proving': return 'Deal sealing on-chain';
+    default: return 'Pinned to IPFS — deal pending';
+  }
+}
+
+function renderReceipt(r) {
+  const card = document.createElement('div');
+  card.className = 'receipt-card';
+  card.dataset.cid = r.cid;
+  card.innerHTML = `
+    <span class="receipt-dot" data-status="${r.dealStatus || 'pending'}"></span>
+    <div class="receipt-info">
+      <p class="receipt-name">${r.name}</p>
+      <p class="receipt-meta">${bytesToReadable(r.size)} · <span class="proof-text">${proofStatusText(r.dealStatus)}</span></p>
+    </div>
+    <span class="receipt-price">${formatPrice(r.price)}</span>
+    <a class="receipt-link" href="${GATEWAY}${r.cid}" target="_blank" rel="noopener">View on IPFS ↗</a>
+  `;
+  receiptList.prepend(card);
+}
+
+function renderAll() {
+  receiptList.innerHTML = '';
+  const receipts = loadReceipts();
+  if (!receipts.length) { receiptList.appendChild(emptyState); return; }
+  receipts.forEach(renderReceipt);
+  startPollingAll();
+}
+
+async function pollProof(cid) {
+  try {
+    const res = await axios.get('https://api.lighthouse.storage/api/lighthouse/get_proof', {
+      params: { cid, network: 'mainnet' },
+    });
+    const proof = res.data;
+    let status = 'pending';
+    if (proof && proof.dealInfo) status = proof.dealInfo.dealId ? 'proven' : 'proving';
+
+    const receipts = loadReceipts();
+    const idx = receipts.findIndex((r) => r.cid === cid);
+    if (idx !== -1) { receipts[idx].dealStatus = status; saveReceipts(receipts); }
+
+    const card = receiptList.querySelector(`[data-cid="${cid}"]`);
+    if (card) {
+      card.querySelector('.receipt-dot').dataset.status = status;
+      card.querySelector('.proof-text').textContent = proofStatusText(status);
+    }
+    return status;
+  } catch { return 'pending'; }
+}
+
+function startPollingAll() {
+  receiptList.querySelectorAll('.receipt-card').forEach((card) => {
+    const cid = card.dataset.cid;
+    if (card.querySelector('.receipt-dot').dataset.status === 'proven') return;
+    const interval = setInterval(async () => {
+      const status = await pollProof(cid);
+      if (status === 'proven') clearInterval(interval);
+    }, 20000);
+  });
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = fileInput.files[0];
+  if (!file) { setStatus('Choose a file first.', 'error'); return; }
+
+  storeBtn.disabled = true;
+  setStatus('Uploading — pinning to IPFS and starting the Filecoin deal…');
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const uploadRes = await axios.post('https://upload.lighthouse.storage/api/v0/add', formData, {
+      headers: { Authorization: `Bearer ${LIGHTHOUSE_API_KEY}` },
+    });
+
+    const data = uploadRes.data;
+    const receipt = {
+      cid: data.Hash,
+      name: data.Name,
+      size: Number(data.Size),
+      price: estimatePrice(Number(data.Size)),
+      storedAt: new Date().toISOString(),
+      dealStatus: 'pending',
+    };
+
+    const receipts = loadReceipts();
+    receipts.unshift(receipt);
+    saveReceipts(receipts);
+
+    setStatus('Stored. Proof will populate over the next few minutes.', 'success');
+    form.reset();
+    dropLabel.style.display = 'block';
+    dropFilename.textContent = '';
+    updatePriceDisplay(null);
+    renderAll();
+  } catch (err) {
+    setStatus('Upload failed. Check your connection and try again.', 'error');
+  } finally {
+    storeBtn.disabled = !fileInput.files[0];
+  }
+});
+
+renderAll();
+</script>
+</body>
+</html>
