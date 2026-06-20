@@ -265,7 +265,9 @@ const STORAGE_KEY = 'paybyte_receipts_v1';
 // this page's source can read this key and use your storage quota.
 // Do NOT share this page's URL publicly while the key is hardcoded.
 // Vercel will look for this name and replace it during deployment
-const LIGHTHOUSE_API_KEY = process.env.LIGHTHOUSE_API_KEY;
+  // We use a simple string placeholder that we can easily swap out
+const LIGHTHOUSE_API_KEY = "REPLACE_WITH_API_KEY";
+
 // ─────────────────────────────────────────────────────────────────
 
 // Illustrative-only rate, clearly disclosed in the UI as an estimate,
